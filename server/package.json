@@ -1,0 +1,9 @@
+{
+  "name": "hiresprint-server",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {"dev":"tsx watch src/index.ts","build":"tsc","start":"node dist/index.js","prisma:generate":"prisma generate","prisma:migrate":"prisma migrate dev","seed":"tsx prisma/seed.ts"},
+  "dependencies": {"@prisma/client":"latest","bcryptjs":"latest","cors":"latest","dotenv":"latest","express":"latest","jsonwebtoken":"latest","socket.io":"latest"},
+  "devDependencies": {"@types/cors":"latest","@types/express":"latest","@types/jsonwebtoken":"latest","@types/node":"latest","prisma":"latest","tsx":"latest","typescript":"latest"}
+}
