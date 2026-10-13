@@ -1,36 +1,31 @@
-# HireSprint — Start Here
+# HireSprint — Quick Start Guide
 
-## Windows PowerShell
-If PowerShell says `npm.ps1 cannot be loaded because running scripts is disabled`, use the Windows command shim directly:
+## Windows PowerShell Command Usage
+Because PowerShell execution policy blocks `.ps1` wrapper scripts, always run `npm.cmd` directly:
 
 ```powershell
-npm.cmd install
+npm.cmd install --legacy-peer-deps
+npm.cmd run seed
 npm.cmd run dev
-```
-
-This avoids the PowerShell `npm.ps1` execution-policy error.
-
-Alternative for the current terminal only:
-
-```powershell
-Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
-npm install
-npm run dev
 ```
 
 ## URLs
-- Frontend: http://localhost:5173
-- Backend API: http://localhost:4000/api/health
+- **Frontend App**: http://localhost:5173
+- **Backend API**: http://localhost:4000/api/v1/health
 
-## Default mode
-`DEMO_MODE=true` means HireSprint starts without PostgreSQL. The backend provides working API endpoints and Socket.IO signaling with demo data.
+## Test Credentials
+All accounts are provisioned with password: `HireSprint@123`
+- **Student**: `student@hiresprint.local`
+- **Teacher**: `teacher@hiresprint.local`
+- **TnP Cell**: `tnp@hiresprint.local`
+- **Coordinator**: `coordinator@hiresprint.local`
+- **Admin**: `admin@hiresprint.local`
 
-## PostgreSQL mode
-Copy `.env.example` to `.env`, set `DEMO_MODE=false`, configure `DATABASE_URL`, then run:
+*(You can also use the one-click quick-select pills on the `/login` screen).*
 
+## Automated Tests & Verification
 ```powershell
-npm.cmd run prisma:generate
-npm.cmd run prisma:migrate
-npm.cmd run seed
-npm.cmd run dev
+npm.cmd run test
+npm.cmd run typecheck
+npm.cmd run build
 ```

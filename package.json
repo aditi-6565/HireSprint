@@ -2,17 +2,21 @@
   "name": "hiresprint",
   "version": "1.0.0",
   "private": true,
-  "description": "HireSprint - AI-powered placement preparation and assessment platform",
-  "workspaces": ["client", "server"],
+  "description": "HIRESPRINT — AI-Powered Group Discussion and Learning Management Portal",
+  "workspaces": [
+    "shared",
+    "client",
+    "server"
+  ],
   "scripts": {
-    "dev": "concurrently -n CLIENT,SERVER -c blue,green \"npm run dev -w client\" \"npm run dev -w server\"",
-    "build": "npm run build -w client && npm run build -w server",
-    "start": "npm run start -w server",
-    "prisma:generate": "npm run prisma:generate -w server",
-    "prisma:migrate": "npm run prisma:migrate -w server",
-    "seed": "npm run seed -w server"
+    "dev": "concurrently -n CLIENT,SERVER -c blue,green \"npm.cmd run dev -w client\" \"npm.cmd run dev -w server\"",
+    "build": "npm.cmd run build -w shared && npm.cmd run build -w server && npm.cmd run build -w client",
+    "start": "npm.cmd run start -w server",
+    "seed": "npm.cmd run seed -w server",
+    "test": "npm.cmd run test -w server",
+    "typecheck": "npm.cmd run build -w shared && npm.cmd run typecheck -w server && npm.cmd run typecheck -w client"
   },
   "devDependencies": {
-    "concurrently": "latest"
+    "concurrently": "^8.2.2"
   }
 }
