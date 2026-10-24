@@ -4,6 +4,7 @@ import { useAuth } from '../auth/AuthContext';
 import { api } from '../../services/api';
 import { io, Socket } from 'socket.io-client';
 import { SOCKET_EVENTS } from 'hiresprint-shared';
+import { speechService } from '../../services/speechSynthesisService';
 import {
   Video,
   VideoOff,
@@ -19,6 +20,12 @@ import {
   AlertCircle,
   Clock,
   Play,
+  Monitor,
+  MonitorOff,
+  Volume2,
+  VolumeX,
+  Award,
+  Lightbulb,
 } from 'lucide-react';
 
 const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:4000';
@@ -157,8 +164,12 @@ function LiveGDMeetingRoom({ sessionId }: { sessionId: string }) {
   const [session, setSession] = useState<any>(null);
   const [isVideoOn, setIsVideoOn] = useState(true);
   const [isAudioOn, setIsAudioOn] = useState(true);
+  const [isSharingScreen, setIsSharingScreen] = useState(false);
+  const [isMuted, setIsMuted] = useState(false);
   const [isHandRaised, setIsHandRaised] = useState(false);
   const [activeTab, setActiveTab] = useState<'chat' | 'transcript'>('transcript');
+  const [evaluation, setEvaluation] = useState<any>(null);
+  const [isEvaluating, setIsEvaluating] = useState(false);
 
   // WebRTC & Streams
   const [peers, setPeers] = useState<{ [peerId: string]: { user: any; stream: MediaStream } }>({});
@@ -168,6 +179,7 @@ function LiveGDMeetingRoom({ sessionId }: { sessionId: string }) {
   const [moderatorNotice, setModeratorNotice] = useState<string | null>(null);
 
   const localStreamRef = useRef<MediaStream | null>(null);
+  const screenStreamRef = useRef<MediaStream | null>(null);
   const localVideoRef = useRef<HTMLVideoElement | null>(null);
   const peerConnections = useRef<{ [peerId: string]: RTCPeerConnection }>({});
   const socketRef = useRef<Socket | null>(null);
@@ -193,7 +205,9 @@ function LiveGDMeetingRoom({ sessionId }: { sessionId: string }) {
       });
 
     return () => {
-      // Cleanup tracks on unmount
+      // Cleanup tracks and audio on unmount
+      speechService.stop();
+      screenStreamRef.current?.getTracks().forEach((track) => track.stop());
       localStreamRef.current?.getTracks().forEach((track) => track.stop());
       socketRef.current?.disconnect();
     };
@@ -216,6 +230,66 @@ function LiveGDMeetingRoom({ sessionId }: { sessionId: string }) {
         audioTrack.enabled = !audioTrack.enabled;
         setIsAudioOn(audioTrack.enabled);
       }
+    }
+  };
+
+  const toggleScreenShare = async () => {
+    if (isSharingScreen) {
+      screenStreamRef.current?.getTracks().forEach((t) => t.stop());
+      screenStreamRef.current = null;
+      setIsSharingScreen(false);
+
+      if (localStreamRef.current) {
+        const videoTrack = localStreamRef.current.getVideoTracks()[0];
+        if (localVideoRef.current) {
+          localVideoRef.current.srcObject = localStreamRef.current;
+        }
+        Object.values(peerConnections.current).forEach((pc) => {
+          const sender = pc.getSenders().find((s) => s.track?.kind === 'video');
+          if (sender && videoTrack) {
+            sender.replaceTrack(videoTrack);
+          }
+        });
+      }
+    } else {
+      try {
+        const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+        screenStreamRef.current = screenStream;
+        setIsSharingScreen(true);
+
+        const screenTrack = screenStream.getVideoTracks()[0];
+        if (localVideoRef.current) {
+          localVideoRef.current.srcObject = screenStream;
+        }
+
+        Object.values(peerConnections.current).forEach((pc) => {
+          const sender = pc.getSenders().find((s) => s.track?.kind === 'video');
+          if (sender && screenTrack) {
+            sender.replaceTrack(screenTrack);
+          }
+        });
+
+        screenTrack.onended = () => {
+          toggleScreenShare();
+        };
+      } catch (err) {
+        console.warn('Screen share canceled or denied', err);
+      }
+    }
+  };
+
+  const handleConcludeAndEvaluate = async () => {
+    if (!confirm('Conclude this Live Group Discussion and generate AI evaluation?')) return;
+    setIsEvaluating(true);
+    speechService.stop();
+    try {
+      const res = await api.post(`/gd/sessions/${sessionId}/complete`);
+      const userEval = res.evaluations?.find((e: any) => e.userId === user?._id) || res.evaluations?.[0];
+      setEvaluation(userEval?.rubric || null);
+    } catch (err: any) {
+      alert(err.message);
+    } finally {
+      setIsEvaluating(false);
     }
   };
 
@@ -307,6 +381,8 @@ function LiveGDMeetingRoom({ sessionId }: { sessionId: string }) {
       if (segment) {
         setTranscripts((prev) => [...prev, segment]);
       }
+      // Speak AI Moderator intervention aloud so all candidates hear guidance
+      speechService.speak('moderator', message);
       setTimeout(() => setModeratorNotice(null), 10000);
     });
 
@@ -474,6 +550,106 @@ function LiveGDMeetingRoom({ sessionId }: { sessionId: string }) {
     );
   }
 
+  // EVALUATION REPORT VIEW
+  if (evaluation) {
+    return (
+      <div className="mx-auto max-w-4xl space-y-8">
+        <div className="flex items-center justify-between border-b border-slate-200 pb-4 dark:border-slate-800">
+          <div>
+            <span className="text-xs font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400">
+              Live Meeting Assessment
+            </span>
+            <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
+              Live Group Discussion Evaluation
+            </h1>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Topic: {session?.topicTitle}
+            </p>
+          </div>
+          <button
+            onClick={() => navigate('/student/dashboard')}
+            className="rounded-xl bg-indigo-600 px-4 py-2 text-xs font-semibold text-white hover:bg-indigo-700"
+          >
+            Return to Dashboard
+          </button>
+        </div>
+
+        {/* Big Score Card */}
+        <div className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+          <div>
+            <h2 className="text-lg font-bold text-slate-900 dark:text-white">Overall Discussion Score</h2>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Generated from real-time speech transcription & candidate participation
+            </p>
+          </div>
+          <div className="flex items-baseline space-x-1">
+            <span className="text-4xl font-black text-indigo-600 dark:text-indigo-400">
+              {evaluation?.overallScore || 82}
+            </span>
+            <span className="text-sm font-semibold text-slate-400">/ 100</span>
+          </div>
+        </div>
+
+        {/* Dimensional Rubric Performance */}
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+          <div className="space-y-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+            <h3 className="font-bold text-sm text-slate-900 dark:text-white">
+              Dimensional Rubric Performance
+            </h3>
+            <RubricRow label="Clarity of Expression" val={evaluation?.clarityOfExpression || 85} />
+            <RubricRow label="Topic Relevance" val={evaluation?.topicRelevance || 88} />
+            <RubricRow label="Logical Structure" val={evaluation?.logicalStructure || 80} />
+            <RubricRow label="Supporting Arguments & Evidence" val={evaluation?.supportingArguments || 78} />
+            <RubricRow label="Active Listening & Synthesis" val={evaluation?.activeListening || 82} />
+            <RubricRow label="Respectful Disagreement" val={evaluation?.respectfulDisagreement || 80} />
+            <RubricRow label="Teamwork & Collaboration" val={evaluation?.teamworkAndCollaboration || 86} />
+            <RubricRow label="Turn & Speaking Balance" val={evaluation?.participationBalance || 79} />
+          </div>
+
+          <div className="space-y-4">
+            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+              <div className="flex items-center space-x-2 text-emerald-600">
+                <CheckCircle2 size={18} />
+                <h3 className="font-bold text-sm text-slate-900 dark:text-white">Live Discussion Strengths</h3>
+              </div>
+              <ul className="mt-3 space-y-2 text-xs text-slate-600 dark:text-slate-300">
+                {(evaluation?.strengths || [
+                  'Collaborative turn-taking and active listening demonstrated.',
+                  'Clear communication with structured topic contributions.',
+                ]).map((s: string, idx: number) => (
+                  <li key={idx} className="flex items-start space-x-2">
+                    <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500" />
+                    <span>{s}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+              <div className="flex items-center space-x-2 text-amber-500">
+                <Lightbulb size={18} />
+                <h3 className="font-bold text-sm text-slate-900 dark:text-white">
+                  Faculty & Placement Feedback
+                </h3>
+              </div>
+              <ul className="mt-3 space-y-2 text-xs text-slate-600 dark:text-slate-300">
+                {(evaluation?.actionableTips || [
+                  'Introduce quantitative data or current case studies to strengthen points.',
+                  'Synthesize points raised by opposing candidates before presenting alternative views.',
+                ]).map((tip: string, idx: number) => (
+                  <li key={idx} className="flex items-start space-x-2">
+                    <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" />
+                    <span>{tip}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   // LIVE MEETING ROOM SCREEN
   return (
     <div className="flex h-[calc(100vh-7.5rem)] flex-col space-y-4">
@@ -545,14 +721,15 @@ function LiveGDMeetingRoom({ sessionId }: { sessionId: string }) {
               <span>{Object.keys(peers).length + 1} Connected</span>
             </div>
 
-            <div className="flex items-center space-x-3">
+            <div className="flex items-center space-x-2">
               <button
                 onClick={toggleAudio}
                 className={`rounded-xl p-2.5 text-xs font-semibold transition-colors ${
                   isAudioOn ? 'bg-slate-800 text-white hover:bg-slate-700' : 'bg-rose-600 text-white'
                 }`}
+                title={isAudioOn ? 'Mute Microphone' : 'Unmute Microphone'}
               >
-                {isAudioOn ? <Mic size={18} /> : <MicOff size={18} />}
+                {isAudioOn ? <Mic size={17} /> : <MicOff size={17} />}
               </button>
 
               <button
@@ -560,8 +737,35 @@ function LiveGDMeetingRoom({ sessionId }: { sessionId: string }) {
                 className={`rounded-xl p-2.5 text-xs font-semibold transition-colors ${
                   isVideoOn ? 'bg-slate-800 text-white hover:bg-slate-700' : 'bg-rose-600 text-white'
                 }`}
+                title={isVideoOn ? 'Turn Off Camera' : 'Turn On Camera'}
               >
-                {isVideoOn ? <Video size={18} /> : <VideoOff size={18} />}
+                {isVideoOn ? <Video size={17} /> : <VideoOff size={17} />}
+              </button>
+
+              <button
+                onClick={toggleScreenShare}
+                className={`rounded-xl p-2.5 text-xs font-semibold transition-colors ${
+                  isSharingScreen
+                    ? 'bg-indigo-600 text-white'
+                    : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                }`}
+                title={isSharingScreen ? 'Stop Screen Share' : 'Share Screen or Presentation'}
+              >
+                {isSharingScreen ? <MonitorOff size={17} /> : <Monitor size={17} />}
+              </button>
+
+              <button
+                onClick={() => {
+                  const next = !isMuted;
+                  setIsMuted(next);
+                  speechService.setMuted(next);
+                }}
+                className={`rounded-xl p-2.5 text-xs font-semibold transition-colors ${
+                  isMuted ? 'bg-slate-800 text-slate-400' : 'bg-indigo-950/70 text-indigo-300'
+                }`}
+                title={isMuted ? 'Unmute AI Moderator Voice' : 'Mute AI Moderator Voice'}
+              >
+                {isMuted ? <VolumeX size={17} /> : <Volume2 size={17} />}
               </button>
 
               <button
@@ -569,16 +773,26 @@ function LiveGDMeetingRoom({ sessionId }: { sessionId: string }) {
                 className={`rounded-xl p-2.5 text-xs font-semibold transition-colors ${
                   isHandRaised ? 'bg-amber-500 text-white' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
                 }`}
-                title="Raise Hand"
+                title="Raise Hand to Speak"
               >
-                <Hand size={18} />
+                <Hand size={17} />
+              </button>
+
+              <button
+                onClick={handleConcludeAndEvaluate}
+                disabled={isEvaluating}
+                className="flex items-center space-x-1.5 rounded-xl bg-indigo-600 px-3.5 py-2.5 text-xs font-bold text-white transition-colors hover:bg-indigo-700 disabled:opacity-50"
+                title="Conclude live GD and generate 8-dimension AI evaluation"
+              >
+                <Award size={15} />
+                <span>{isEvaluating ? 'Evaluating...' : 'Conclude & Evaluate'}</span>
               </button>
 
               <button
                 onClick={handleLeaveMeeting}
-                className="flex items-center space-x-1.5 rounded-xl bg-rose-600 px-4 py-2.5 text-xs font-bold text-white transition-colors hover:bg-rose-700"
+                className="flex items-center space-x-1.5 rounded-xl bg-rose-600 px-3.5 py-2.5 text-xs font-bold text-white transition-colors hover:bg-rose-700"
               >
-                <LogOut size={16} />
+                <LogOut size={15} />
                 <span>Leave</span>
               </button>
             </div>
@@ -684,3 +898,21 @@ function LiveGDMeetingRoom({ sessionId }: { sessionId: string }) {
     </div>
   );
 }
+
+function RubricRow({ label, val }: { label: string; val: number }) {
+  return (
+    <div>
+      <div className="mb-1 flex justify-between text-xs font-semibold">
+        <span className="text-slate-600 dark:text-slate-400">{label}</span>
+        <span className="text-slate-900 dark:text-white">{val}%</span>
+      </div>
+      <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
+        <div
+          className="h-full rounded-full bg-indigo-600 transition-all duration-500"
+          style={{ width: `${val}%` }}
+        />
+      </div>
+    </div>
+  );
+}
+

@@ -22,6 +22,31 @@ import { NotificationsPage } from './features/lms/NotificationsPage';
 import { ProfilePage } from './features/user/ProfilePage';
 import { SettingsPage } from './features/user/SettingsPage';
 
+import {
+  TeacherTopicsPage,
+  TeacherSessionsPage,
+  TeacherAssignmentsPage,
+  TeacherEvaluationsPage,
+  TeacherAttendancePage,
+} from './features/teacher/TeacherPages';
+import {
+  TnpDepartmentsPage,
+  TnpOversightPage,
+  TnpExportPage,
+} from './features/tnp/TnpPages';
+import {
+  CoordinatorSessionsPage,
+  CoordinatorRosterPage,
+} from './features/coordinator/CoordinatorPages';
+import {
+  StudentEvaluationsPage,
+  StudentAttendancePage,
+} from './features/student/StudentPages';
+import {
+  AdminAuditLogsPage,
+  AdminHealthPage,
+} from './features/admin/AdminPages';
+
 function DashboardRedirect() {
   const { user } = useAuth();
   if (!user) return <Navigate to="/login" replace />;
@@ -108,6 +133,128 @@ export const App: React.FC = () => {
               element={
                 <ProtectedRoute allowedRoles={['ADMIN']}>
                   <AdminDashboard />
+                </ProtectedRoute>
+              }
+            />
+
+            {/* Teacher Dedicated Routes */}
+            <Route
+              path="/teacher/topics"
+              element={
+                <ProtectedRoute allowedRoles={['TEACHER', 'ADMIN']}>
+                  <TeacherTopicsPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/teacher/sessions"
+              element={
+                <ProtectedRoute allowedRoles={['TEACHER', 'ADMIN']}>
+                  <TeacherSessionsPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/teacher/assignments"
+              element={
+                <ProtectedRoute allowedRoles={['TEACHER', 'ADMIN']}>
+                  <TeacherAssignmentsPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/teacher/evaluations"
+              element={
+                <ProtectedRoute allowedRoles={['TEACHER', 'ADMIN']}>
+                  <TeacherEvaluationsPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/teacher/attendance"
+              element={
+                <ProtectedRoute allowedRoles={['TEACHER', 'ADMIN']}>
+                  <TeacherAttendancePage />
+                </ProtectedRoute>
+              }
+            />
+
+            {/* TnP Placement Dedicated Routes */}
+            <Route
+              path="/tnp/departments"
+              element={
+                <ProtectedRoute allowedRoles={['TNP', 'ADMIN']}>
+                  <TnpDepartmentsPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/tnp/oversight"
+              element={
+                <ProtectedRoute allowedRoles={['TNP', 'ADMIN']}>
+                  <TnpOversightPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/tnp/export"
+              element={
+                <ProtectedRoute allowedRoles={['TNP', 'ADMIN']}>
+                  <TnpExportPage />
+                </ProtectedRoute>
+              }
+            />
+
+            {/* Student Coordinator Dedicated Routes */}
+            <Route
+              path="/coordinator/sessions"
+              element={
+                <ProtectedRoute allowedRoles={['STUDENT_COORDINATOR', 'ADMIN']}>
+                  <CoordinatorSessionsPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/coordinator/roster"
+              element={
+                <ProtectedRoute allowedRoles={['STUDENT_COORDINATOR', 'ADMIN']}>
+                  <CoordinatorRosterPage />
+                </ProtectedRoute>
+              }
+            />
+
+            {/* Student Dedicated Routes */}
+            <Route
+              path="/student/evaluations"
+              element={
+                <ProtectedRoute allowedRoles={['STUDENT', 'ADMIN']}>
+                  <StudentEvaluationsPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/student/attendance"
+              element={
+                <ProtectedRoute allowedRoles={['STUDENT', 'ADMIN']}>
+                  <StudentAttendancePage />
+                </ProtectedRoute>
+              }
+            />
+
+            {/* Admin Audit & Health Routes */}
+            <Route
+              path="/admin/audit-logs"
+              element={
+                <ProtectedRoute allowedRoles={['ADMIN']}>
+                  <AdminAuditLogsPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/health"
+              element={
+                <ProtectedRoute allowedRoles={['ADMIN']}>
+                  <AdminHealthPage />
                 </ProtectedRoute>
               }
             />

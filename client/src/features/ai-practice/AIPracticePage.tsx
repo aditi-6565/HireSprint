@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../auth/AuthContext';
 import { api } from '../../services/api';
 import { AI_PERSONAS, AIPersonaConfig } from 'hiresprint-shared';
+import { speechService } from '../../services/speechSynthesisService';
 import {
   Sparkles,
   Play,
@@ -16,6 +17,8 @@ import {
   CheckCircle2,
   AlertCircle,
   Lightbulb,
+  Volume2,
+  VolumeX,
 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 
@@ -41,6 +44,7 @@ export const AIPracticePage: React.FC = () => {
   const [transcript, setTranscript] = useState<any[]>([]);
   const [activeSpeaker, setActiveSpeaker] = useState<string>('ai-moderator');
   const [isMicOn, setIsMicOn] = useState(false);
+  const [isMuted, setIsMuted] = useState(false);
   const [studentInput, setStudentInput] = useState('');
   const [isAiThinking, setIsAiThinking] = useState(false);
   const [evaluation, setEvaluation] = useState<any>(null);
@@ -55,6 +59,12 @@ export const AIPracticePage: React.FC = () => {
         setSelectedTopicId(res.topics[0]._id);
       }
     }).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      speechService.stop();
+    };
   }, []);
 
   useEffect(() => {
@@ -92,10 +102,23 @@ export const AIPracticePage: React.FC = () => {
       setActiveSpeaker('ai-moderator');
       setStep('active');
 
-      // Trigger first persona to speak after 1.5 seconds
-      setTimeout(() => {
-        triggerAiTurn(res.session._id);
-      }, 1500);
+      const introItem = details.transcript?.[0];
+      if (introItem?.text) {
+        // Moderator speaks opening statement aloud
+        speechService.speak(
+          'moderator',
+          introItem.text,
+          () => setActiveSpeaker('ai-moderator'),
+          () => {
+            setActiveSpeaker('');
+            triggerAiTurn(res.session._id);
+          }
+        );
+      } else {
+        setTimeout(() => {
+          triggerAiTurn(res.session._id);
+        }, 1500);
+      }
     } catch (err: any) {
       alert(err.message);
     }
@@ -106,7 +129,15 @@ export const AIPracticePage: React.FC = () => {
     try {
       const res = await api.post(`/gd/sessions/${sessionId}/ai-turn`);
       setTranscript((prev) => [...prev, res.segment]);
-      setActiveSpeaker(res.segment.speakerId);
+      const personaId = res.segment.personaId || res.segment.speakerId?.replace(/^ai-/, '') || 'confident_communicator';
+
+      // Persona speaks dialogue aloud with distinct voice
+      speechService.speak(
+        personaId,
+        res.segment.text,
+        () => setActiveSpeaker(res.segment.speakerId),
+        () => setActiveSpeaker('')
+      );
     } catch (err: any) {
       console.error(err);
     } finally {
@@ -116,6 +147,7 @@ export const AIPracticePage: React.FC = () => {
 
   const handleSendTurn = async () => {
     if (!studentInput.trim() || !session) return;
+    speechService.stop(); // Stop ongoing speech when student intervenes
     const textToSend = studentInput.trim();
     setStudentInput('');
     setActiveSpeaker('student');
@@ -130,7 +162,7 @@ export const AIPracticePage: React.FC = () => {
       // Trigger AI persona response
       setTimeout(() => {
         triggerAiTurn(session._id);
-      }, 1200);
+      }, 1000);
     } catch (err: any) {
       alert(err.message);
     }
@@ -138,6 +170,7 @@ export const AIPracticePage: React.FC = () => {
 
   // Speech Recognition (Web Speech API)
   const toggleSpeechRecognition = () => {
+    speechService.stop(); // Mute synthesized speech while student speaks
     const SpeechRecognition =
       (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
 
@@ -176,6 +209,7 @@ export const AIPracticePage: React.FC = () => {
 
   const handleEndSession = async () => {
     if (!session) return;
+    speechService.stop();
     try {
       const res = await api.post(`/gd/sessions/${session._id}/complete`);
       const userEval = res.evaluations?.find((e: any) => e.userId === user?._id) || res.evaluations?.[0];
@@ -329,6 +363,23 @@ export const AIPracticePage: React.FC = () => {
             </h2>
           </div>
           <div className="flex items-center space-x-3">
+            <button
+              onClick={() => {
+                const next = !isMuted;
+                setIsMuted(next);
+                speechService.setMuted(next);
+              }}
+              className={`flex items-center space-x-1.5 rounded-xl border px-3 py-2 text-xs font-semibold transition-all ${
+                isMuted
+                  ? 'border-slate-300 bg-slate-100 text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400'
+                  : 'border-indigo-200 bg-indigo-50 text-indigo-700 dark:border-indigo-800 dark:bg-indigo-950/60 dark:text-indigo-300'
+              }`}
+              title={isMuted ? 'Unmute AI voices' : 'Mute AI voices'}
+            >
+              {isMuted ? <VolumeX size={15} /> : <Volume2 size={15} className="animate-pulse" />}
+              <span>{isMuted ? 'AI Voices: Muted' : 'AI Voices: Speaking Aloud'}</span>
+            </button>
+
             <button
               onClick={handleEndSession}
               className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-2 text-xs font-semibold text-rose-700 transition-colors hover:bg-rose-100 dark:border-rose-900/60 dark:bg-rose-950/40 dark:text-rose-300"

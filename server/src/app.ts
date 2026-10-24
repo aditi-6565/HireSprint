@@ -26,7 +26,7 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Health Check API
-app.get('/api/v1/health', (_req, res) => {
+const healthHandler = (_req: express.Request, res: express.Response) => {
   res.json({
     status: 'ok',
     service: 'HireSprint Backend API',
@@ -34,7 +34,10 @@ app.get('/api/v1/health', (_req, res) => {
     timestamp: new Date().toISOString(),
     aiConfigured: Boolean(process.env.GROQ_API_KEY && process.env.GROQ_API_KEY.trim() !== ''),
   });
-});
+};
+
+app.get('/api/health', healthHandler);
+app.get('/api/v1/health', healthHandler);
 
 // Version 1 Routes
 app.use('/api/v1/auth', authRoutes);
@@ -42,6 +45,13 @@ app.use('/api/v1/gd', gdRoutes);
 app.use('/api/v1/lms', lmsRoutes);
 app.use('/api/v1/analytics', analyticsRoutes);
 app.use('/api/v1/admin', adminRoutes);
+
+// Fallback aliases without /v1
+app.use('/api/auth', authRoutes);
+app.use('/api/gd', gdRoutes);
+app.use('/api/lms', lmsRoutes);
+app.use('/api/analytics', analyticsRoutes);
+app.use('/api/admin', adminRoutes);
 
 // 404 Handler
 app.use((req, res) => {

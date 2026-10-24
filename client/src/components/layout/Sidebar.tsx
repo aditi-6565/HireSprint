@@ -14,6 +14,12 @@ import {
   Users,
   ChevronLeft,
   ChevronRight,
+  Award,
+  Clock,
+  Building,
+  AlertTriangle,
+  FileSpreadsheet,
+  Server,
   Layers,
 } from 'lucide-react';
 
@@ -21,38 +27,64 @@ export const Sidebar: React.FC = () => {
   const { user } = useAuth();
   const [collapsed, setCollapsed] = useState(false);
 
-  const getDashboardRoute = () => {
+  // Return customized navigation items strictly tailored to each role
+  const getNavItemsForRole = () => {
     switch (user?.role) {
-      case 'ADMIN':
-        return '/admin/dashboard';
       case 'TEACHER':
-        return '/teacher/dashboard';
+        return [
+          { label: 'Faculty Overview', to: '/teacher/dashboard', icon: LayoutDashboard },
+          { label: 'Topic Studio', to: '/teacher/topics', icon: BookOpen },
+          { label: 'Session Scheduler', to: '/teacher/sessions', icon: Video },
+          { label: 'Assignments & Submissions', to: '/teacher/assignments', icon: BookmarkCheck },
+          { label: 'Candidate Evaluations', to: '/teacher/evaluations', icon: Award },
+          { label: 'Class Attendance Roster', to: '/teacher/attendance', icon: Clock },
+          { label: 'LMS Resources', to: '/resources', icon: FileText },
+        ];
+
       case 'TNP':
-        return '/tnp/dashboard';
+        return [
+          { label: 'Placement Overview', to: '/tnp/dashboard', icon: LayoutDashboard },
+          { label: 'Readiness Analytics', to: '/tnp/reports', icon: BarChart3 },
+          { label: 'Department Trends', to: '/tnp/departments', icon: Building },
+          { label: 'Practice Oversight', to: '/tnp/oversight', icon: AlertTriangle },
+          { label: 'Export Reports (CSV)', to: '/tnp/export', icon: FileSpreadsheet },
+          { label: 'Approved GD Topics', to: '/topics', icon: BookOpen },
+        ];
+
       case 'STUDENT_COORDINATOR':
-        return '/coordinator/dashboard';
+        return [
+          { label: 'Coordinator Overview', to: '/coordinator/dashboard', icon: LayoutDashboard },
+          { label: 'Assigned GD Sessions', to: '/coordinator/sessions', icon: Video },
+          { label: 'Waiting Room & Rosters', to: '/coordinator/roster', icon: Users },
+          { label: 'Live GD Meeting Rooms', to: '/gd/live', icon: Video },
+          { label: 'Approved Topics', to: '/topics', icon: BookOpen },
+        ];
+
+      case 'ADMIN':
+        return [
+          { label: 'Admin Overview', to: '/admin/dashboard', icon: LayoutDashboard },
+          { label: 'User Directory & Roles', to: '/admin/users', icon: Users },
+          { label: 'Topic Governance', to: '/teacher/topics', icon: BookOpen },
+          { label: 'Security Audit Logs', to: '/admin/audit-logs', icon: ShieldCheck },
+          { label: 'System Health Status', to: '/admin/health', icon: Server },
+        ];
+
       case 'STUDENT':
       default:
-        return '/student/dashboard';
+        return [
+          { label: 'Student Overview', to: '/student/dashboard', icon: LayoutDashboard },
+          { label: 'AI GD Practice', to: '/gd/practice', icon: Sparkles, badge: 'AI' },
+          { label: 'Live GD Rooms', to: '/gd/live', icon: Video },
+          { label: 'GD Topics Catalog', to: '/topics', icon: BookOpen },
+          { label: 'Learning Resources', to: '/resources', icon: FileText },
+          { label: 'My Course Assignments', to: '/assignments', icon: BookmarkCheck },
+          { label: 'My Evaluations & Rubrics', to: '/student/evaluations', icon: Award },
+          { label: 'Attendance History', to: '/student/attendance', icon: Clock },
+        ];
     }
   };
 
-  const navItems = [
-    { label: 'Overview', to: getDashboardRoute(), icon: LayoutDashboard },
-    { label: 'AI GD Practice', to: '/gd/practice', icon: Sparkles, badge: 'AI' },
-    { label: 'Live GD Rooms', to: '/gd/live', icon: Video },
-    { label: 'GD Topics', to: '/topics', icon: BookOpen },
-    { label: 'LMS Resources', to: '/resources', icon: FileText },
-    { label: 'Assignments', to: '/assignments', icon: BookmarkCheck },
-  ];
-
-  if (user?.role === 'TNP' || user?.role === 'ADMIN') {
-    navItems.push({ label: 'Placement Reports', to: '/tnp/reports', icon: BarChart3 });
-  }
-
-  if (user?.role === 'ADMIN') {
-    navItems.push({ label: 'User Directory', to: '/admin/users', icon: Users });
-  }
+  const navItems = getNavItemsForRole();
 
   return (
     <aside
@@ -71,8 +103,8 @@ export const Sidebar: React.FC = () => {
               <span className="font-bold tracking-tight text-slate-900 dark:text-white">
                 HireSprint
               </span>
-              <span className="text-[10px] font-medium text-slate-400">
-                AI GD & Placement
+              <span className="text-[10px] font-semibold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider">
+                {user?.role ? `${user.role} PORTAL` : 'PLACEMENT GD'}
               </span>
             </div>
           )}
@@ -90,7 +122,7 @@ export const Sidebar: React.FC = () => {
       <div className="flex-1 space-y-1.5 overflow-y-auto px-3 py-4">
         {!collapsed && (
           <p className="px-3 pb-2 text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
-            Navigation
+            {user?.role} Workspace
           </p>
         )}
         {navItems.map((item) => (
@@ -108,14 +140,14 @@ export const Sidebar: React.FC = () => {
           >
             <div className="flex items-center space-x-3">
               <item.icon
-                size={20}
+                size={19}
                 className="shrink-0 transition-transform group-hover:scale-105"
               />
               {!collapsed && <span>{item.label}</span>}
             </div>
-            {!collapsed && item.badge && (
+            {!collapsed && (item as any).badge && (
               <span className="rounded-md bg-indigo-100 px-1.5 py-0.5 text-[10px] font-bold text-indigo-700 dark:bg-indigo-900 dark:text-indigo-300">
-                {item.badge}
+                {(item as any).badge}
               </span>
             )}
           </NavLink>
