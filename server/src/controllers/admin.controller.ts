@@ -1,7 +1,50 @@
 import { Request, Response } from 'express';
+import bcrypt from 'bcryptjs';
 import { User, AuditLog, PlatformSetting } from '../models/index.js';
 
 export class AdminController {
+  static async createStaffUser(req: Request, res: Response) {
+    const { name, email, password, role, departmentName } = req.body;
+    const normalizedEmail = email.toLowerCase();
+    const existing = await User.findOne({ email: normalizedEmail });
+    if (existing) {
+      return res.status(409).json({ message: 'An account with this email address already exists.' });
+    }
+
+    const user = await User.create({
+      name,
+      email: normalizedEmail,
+      passwordHash: await bcrypt.hash(password, 10),
+      role,
+      departmentName: departmentName || 'Computer Science & Engineering',
+      isActive: true,
+    });
+
+    if (req.user) {
+      await AuditLog.create({
+        actorId: req.user.id,
+        actorName: req.user.name,
+        actorEmail: req.user.email,
+        action: 'CREATE_STAFF_USER',
+        targetType: 'User',
+        targetId: user._id.toString(),
+        details: { email: user.email, role: user.role },
+      });
+    }
+
+    return res.status(201).json({
+      message: 'Staff account created successfully',
+      user: {
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        departmentName: user.departmentName,
+        isActive: user.isActive,
+      },
+    });
+  }
+
   static async listUsers(req: Request, res: Response) {
     const filter: any = {};
     if (req.query.role) filter.role = req.query.role;

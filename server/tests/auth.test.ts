@@ -99,4 +99,80 @@ describe('Auth & Role Authorization API Tests', () => {
     expect(adminRes.status).toBe(403);
     expect(adminRes.body.message).toContain('Access denied');
   });
+
+  it('POST /api/v1/admin/users should create teacher and coordinator accounts for admins', async () => {
+    const adminRes = await request(app)
+      .post('/api/v1/auth/register')
+      .send({
+        name: 'Staff Admin',
+        email: `staffadmin_${Date.now()}@hiresprint.local`,
+        password: 'Password@123',
+        role: 'ADMIN',
+      });
+    const token = adminRes.body.token;
+
+    for (const role of ['TEACHER', 'STUDENT_COORDINATOR']) {
+      const email = `${role.toLowerCase()}_${Date.now()}@hiresprint.local`;
+      const createRes = await request(app)
+        .post('/api/v1/admin/users')
+        .set('Cookie', 'token=' + token)
+        .send({
+          name: `Test ${role}`,
+          email,
+          password: 'Password@123',
+          role,
+        });
+
+      expect(createRes.status).toBe(201);
+      expect(createRes.body.user.email).toBe(email);
+      expect(createRes.body.user.role).toBe(role);
+      expect(createRes.body.user.passwordHash).toBeUndefined();
+    }
+  });
+
+  it('POST /api/v1/admin/users should reject non-admins and roles outside teacher/coordinator', async () => {
+    const studentRes = await request(app)
+      .post('/api/v1/auth/register')
+      .send({
+        name: 'Staff Creation Student',
+        email: `staffstudent_${Date.now()}@hiresprint.local`,
+        password: 'Password@123',
+        role: 'STUDENT',
+      });
+    const studentToken = studentRes.body.token;
+
+    const deniedRes = await request(app)
+      .post('/api/v1/admin/users')
+      .set('Cookie', 'token=' + studentToken)
+      .send({
+        name: 'Unauthorized Teacher',
+        email: `unauthorized_${Date.now()}@hiresprint.local`,
+        password: 'Password@123',
+        role: 'TEACHER',
+      });
+    expect(deniedRes.status).toBe(403);
+
+    const adminRes = await request(app)
+      .post('/api/v1/auth/register')
+      .send({
+        name: 'Role Validation Admin',
+        email: `roleadmin_${Date.now()}@hiresprint.local`,
+        password: 'Password@123',
+        role: 'ADMIN',
+      });
+    const adminToken = adminRes.body.token;
+
+    const invalidRoleRes = await request(app)
+      .post('/api/v1/admin/users')
+      .set('Cookie', 'token=' + adminToken)
+      .send({
+        name: 'Invalid Staff Role',
+        email: `invalidrole_${Date.now()}@hiresprint.local`,
+        password: 'Password@123',
+        role: 'ADMIN',
+      });
+    expect(invalidRoleRes.status).toBe(400);
+    expect(studentRes.body.token).toBeDefined();
+    expect(adminRes.body.token).toBeDefined();
+  });
 });

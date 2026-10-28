@@ -1,6 +1,8 @@
 import { Router } from 'express';
 import { LMSController } from '../controllers/lms.controller.js';
 import { authenticate, authorizeRoles } from '../middleware/auth.js';
+import { validateRequest } from '../middleware/validate.js';
+import { createResourceSchema } from '../schemas/resource.schema.js';
 
 const router = Router();
 
@@ -12,7 +14,13 @@ router.delete('/topics/:id', authenticate, authorizeRoles('ADMIN', 'TEACHER'), L
 
 // Resources
 router.get('/resources', LMSController.listResources);
-router.post('/resources', authenticate, authorizeRoles('ADMIN', 'TEACHER', 'TNP'), LMSController.createResource);
+router.post(
+  '/resources',
+  authenticate,
+  authorizeRoles('ADMIN', 'TEACHER', 'TNP'),
+  validateRequest(createResourceSchema),
+  LMSController.createResource
+);
 
 // Assignments
 router.get('/assignments', authenticate, LMSController.listAssignments);

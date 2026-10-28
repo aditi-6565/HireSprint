@@ -49,6 +49,7 @@ export const Sidebar: React.FC = () => {
           { label: 'Practice Oversight', to: '/tnp/oversight', icon: AlertTriangle },
           { label: 'Export Reports (CSV)', to: '/tnp/export', icon: FileSpreadsheet },
           { label: 'Approved GD Topics', to: '/topics', icon: BookOpen },
+          { label: 'LMS Resources', to: '/resources', icon: FileText },
         ];
 
       case 'STUDENT_COORDINATOR':

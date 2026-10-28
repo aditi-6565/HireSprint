@@ -5,6 +5,7 @@ import { connectDB, disconnectDB } from '../src/config/db.js';
 
 describe('LMS Subsystem Tests', () => {
   let teacherToken = '';
+  let tnpToken = '';
   let studentToken = '';
 
   beforeAll(async () => {
@@ -18,6 +19,16 @@ describe('LMS Subsystem Tests', () => {
         role: 'TEACHER',
       });
     teacherToken = teacherRes.body.token;
+
+    const tnpRes = await request(app)
+      .post('/api/v1/auth/register')
+      .send({
+        name: 'LMS TnP User',
+        email: `lmstnp_${Date.now()}@hiresprint.local`,
+        password: 'Password@123',
+        role: 'TNP',
+      });
+    tnpToken = tnpRes.body.token;
 
     const studentRes = await request(app)
       .post('/api/v1/auth/register')
@@ -54,6 +65,36 @@ describe('LMS Subsystem Tests', () => {
 
     expect(res.status).toBe(201);
     expect(res.body.topic.title).toBe('Cybersecurity In Cloud Infrastructure');
+  });
+
+  it('POST /api/v1/lms/resources should allow teachers and TnP users and reject students', async () => {
+    for (const token of [teacherToken, tnpToken]) {
+      const res = await request(app)
+        .post('/api/v1/lms/resources')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          title: 'Placement Interview Preparation',
+          description: 'A practical resource for interview preparation.',
+          category: 'Placement',
+          type: 'guide',
+          content: 'Research the organization and practice concise responses.',
+        });
+
+      expect(res.status).toBe(201);
+      expect(res.body.resource.title).toBe('Placement Interview Preparation');
+    }
+
+    const deniedRes = await request(app)
+      .post('/api/v1/lms/resources')
+      .set('Authorization', `Bearer ${studentToken}`)
+      .send({
+        title: 'Student Resource',
+        description: 'Students cannot publish resources.',
+        type: 'guide',
+        content: 'This request should be denied.',
+      });
+
+    expect(deniedRes.status).toBe(403);
   });
 
   it('POST /api/v1/lms/assignments should create an assignment and notify students', async () => {

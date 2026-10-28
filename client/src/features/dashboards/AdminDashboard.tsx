@@ -10,9 +10,11 @@ import {
   Activity,
   Search,
   Filter,
+  UserPlus,
 } from 'lucide-react';
 
 export const AdminDashboard: React.FC = () => {
+  const [activeTab, setActiveTab] = useState<'directory' | 'add-staff'>('directory');
   const [analytics, setAnalytics] = useState<any>(null);
   const [users, setUsers] = useState<any[]>([]);
   const [search, setSearch] = useState('');
@@ -94,6 +96,34 @@ export const AdminDashboard: React.FC = () => {
         </div>
       </div>
 
+      <div className="flex gap-2 border-b border-slate-200 dark:border-slate-800">
+        <button
+          type="button"
+          onClick={() => setActiveTab('directory')}
+          className={`border-b-2 px-4 py-3 text-sm font-semibold transition-colors ${
+            activeTab === 'directory'
+              ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400'
+              : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+          }`}
+        >
+          User Directory
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('add-staff')}
+          className={`flex items-center gap-2 border-b-2 px-4 py-3 text-sm font-semibold transition-colors ${
+            activeTab === 'add-staff'
+              ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400'
+              : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+          }`}
+        >
+          <UserPlus size={16} />
+          Add Teacher/Coordinator
+        </button>
+      </div>
+
+      {activeTab === 'directory' ? (
+        <>
       {/* Role Counts Grid */}
       <div className="grid grid-cols-2 gap-4 md:grid-cols-5">
         <RoleCard role="STUDENT" count={rolesCount.STUDENT || 0} color="border-blue-500" />
@@ -247,9 +277,141 @@ export const AdminDashboard: React.FC = () => {
           )}
         </div>
       </div>
+        </>
+      ) : (
+        <AddStaffForm onCreated={fetchUsers} />
+      )}
     </div>
   );
 };
+
+function AddStaffForm({ onCreated }: { onCreated: () => void }) {
+  const [form, setForm] = useState({
+    name: '',
+    email: '',
+    password: '',
+    role: 'TEACHER' as 'TEACHER' | 'STUDENT_COORDINATOR',
+    departmentName: '',
+  });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setLoading(true);
+    setError('');
+    setSuccess('');
+
+    try {
+      await api.post('/admin/users', form);
+      setSuccess(`${form.role === 'TEACHER' ? 'Teacher' : 'Coordinator'} account created for ${form.email}.`);
+      setForm((current) => ({ ...current, password: '' }));
+      onCreated();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to create the account.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const inputClassName =
+    'w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none focus:border-indigo-600 dark:border-slate-700 dark:bg-slate-800 dark:text-white';
+
+  return (
+    <div className="max-w-3xl rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+      <div className="mb-6">
+        <h2 className="text-lg font-bold text-slate-900 dark:text-white">Create a staff account</h2>
+        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+          Add a teacher or student coordinator. They can sign in with the email and password you provide.
+        </p>
+      </div>
+
+      <form onSubmit={handleSubmit} className="space-y-5">
+        <div className="grid gap-5 sm:grid-cols-2">
+          <label className="space-y-1.5 text-sm font-medium text-slate-700 dark:text-slate-300">
+            Full name
+            <input
+              required
+              minLength={2}
+              autoComplete="name"
+              value={form.name}
+              onChange={(event) => setForm({ ...form, name: event.target.value })}
+              className={inputClassName}
+              placeholder="Enter full name"
+            />
+          </label>
+          <label className="space-y-1.5 text-sm font-medium text-slate-700 dark:text-slate-300">
+            Email address
+            <input
+              required
+              type="email"
+              autoComplete="email"
+              value={form.email}
+              onChange={(event) => setForm({ ...form, email: event.target.value })}
+              className={inputClassName}
+              placeholder="name@institution.edu"
+            />
+          </label>
+          <label className="space-y-1.5 text-sm font-medium text-slate-700 dark:text-slate-300">
+            Role
+            <select
+              value={form.role}
+              onChange={(event) =>
+                setForm({ ...form, role: event.target.value as 'TEACHER' | 'STUDENT_COORDINATOR' })
+              }
+              className={inputClassName}
+            >
+              <option value="TEACHER">Teacher</option>
+              <option value="STUDENT_COORDINATOR">Coordinator</option>
+            </select>
+          </label>
+          <label className="space-y-1.5 text-sm font-medium text-slate-700 dark:text-slate-300">
+            Department
+            <input
+              value={form.departmentName}
+              onChange={(event) => setForm({ ...form, departmentName: event.target.value })}
+              className={inputClassName}
+              placeholder="e.g. Computer Science"
+            />
+          </label>
+          <label className="space-y-1.5 text-sm font-medium text-slate-700 dark:text-slate-300 sm:col-span-2">
+            Initial password
+            <input
+              required
+              type="password"
+              minLength={6}
+              autoComplete="new-password"
+              value={form.password}
+              onChange={(event) => setForm({ ...form, password: event.target.value })}
+              className={inputClassName}
+              placeholder="At least 6 characters"
+            />
+          </label>
+        </div>
+
+        {error && (
+          <p role="alert" className="rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-700 dark:bg-rose-950/40 dark:text-rose-300">
+            {error}
+          </p>
+        )}
+        {success && (
+          <p role="status" className="rounded-xl bg-emerald-50 px-4 py-3 text-sm text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
+            {success}
+          </p>
+        )}
+
+        <button
+          type="submit"
+          disabled={loading}
+          className="rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {loading ? 'Creating account...' : 'Create staff account'}
+        </button>
+      </form>
+    </div>
+  );
+}
 
 function RoleCard({ role, count, color }: { role: string; count: number; color: string }) {
   return (

@@ -9,9 +9,12 @@ import {
   AlertTriangle,
   FileSpreadsheet,
   Building,
+  FileText,
 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 export const TnpDashboard: React.FC = () => {
+  const navigate = useNavigate();
   const [analytics, setAnalytics] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
@@ -57,13 +60,22 @@ export const TnpDashboard: React.FC = () => {
           </p>
         </div>
 
-        <button
-          onClick={handleExportCSV}
-          className="flex items-center space-x-2 rounded-xl bg-amber-600 px-4 py-2.5 text-xs font-semibold text-white shadow-md shadow-amber-600/20 transition-all hover:bg-amber-700"
-        >
-          <FileSpreadsheet size={16} />
-          <span>Export Placement Report (CSV)</span>
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={() => navigate('/resources')}
+            className="flex items-center space-x-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+          >
+            <FileText size={16} />
+            <span>Add LMS Resource</span>
+          </button>
+          <button
+            onClick={handleExportCSV}
+            className="flex items-center space-x-2 rounded-xl bg-amber-600 px-4 py-2.5 text-xs font-semibold text-white shadow-md shadow-amber-600/20 transition-all hover:bg-amber-700"
+          >
+            <FileSpreadsheet size={16} />
+            <span>Export Placement Report (CSV)</span>
+          </button>
+        </div>
       </div>
 
       {/* Cohort Stats */}
