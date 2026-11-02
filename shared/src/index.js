@@ -84,7 +84,6 @@ export const SOCKET_EVENTS = {
     WEBRTC_ICE_CANDIDATE: 'webrtc:ice-candidate',
     MEETING_CHAT: 'meeting:chat',
     MEETING_HAND_RAISE: 'meeting:hand-raise',
-    MEETING_TRANSCRIPT: 'meeting:transcript',
     MEETING_MODERATOR_EVENT: 'meeting:moderator-event',
     MEETING_ERROR: 'meeting:error',
     NOTIFICATION_RECEIVE: 'notification:receive'

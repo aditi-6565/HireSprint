@@ -80,7 +80,7 @@ function LiveGDRoomSelector() {
           Live GD Meeting Rooms
         </h1>
         <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-          Join peer-to-peer audio/video discussions with real-time AI moderation, live transcription, and university attendance logging.
+          Join peer-to-peer audio/video discussions with meeting chat, AI moderation, and university attendance logging.
         </p>
       </div>
 
@@ -167,14 +167,12 @@ function LiveGDMeetingRoom({ sessionId }: { sessionId: string }) {
   const [isSharingScreen, setIsSharingScreen] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const [isHandRaised, setIsHandRaised] = useState(false);
-  const [activeTab, setActiveTab] = useState<'chat' | 'transcript'>('transcript');
   const [evaluation, setEvaluation] = useState<any>(null);
   const [isEvaluating, setIsEvaluating] = useState(false);
 
   // WebRTC & Streams
   const [peers, setPeers] = useState<{ [peerId: string]: { user: any; stream: MediaStream } }>({});
   const [chats, setChats] = useState<any[]>([]);
-  const [transcripts, setTranscripts] = useState<any[]>([]);
   const [chatInput, setChatInput] = useState('');
   const [moderatorNotice, setModeratorNotice] = useState<string | null>(null);
 
@@ -183,7 +181,6 @@ function LiveGDMeetingRoom({ sessionId }: { sessionId: string }) {
   const localVideoRef = useRef<HTMLVideoElement | null>(null);
   const peerConnections = useRef<{ [peerId: string]: RTCPeerConnection }>({});
   const socketRef = useRef<Socket | null>(null);
-  const recognitionRef = useRef<any>(null);
 
   useEffect(() => {
     // Load session info
@@ -212,6 +209,12 @@ function LiveGDMeetingRoom({ sessionId }: { sessionId: string }) {
       socketRef.current?.disconnect();
     };
   }, [sessionId]);
+
+  useEffect(() => {
+    if (!inWaitingRoom && localVideoRef.current && localStreamRef.current) {
+      localVideoRef.current.srcObject = localStreamRef.current;
+    }
+  }, [inWaitingRoom]);
 
   const toggleVideo = () => {
     if (localStreamRef.current) {
@@ -307,10 +310,6 @@ function LiveGDMeetingRoom({ sessionId }: { sessionId: string }) {
       socket.emit(SOCKET_EVENTS.MEETING_JOIN, { roomId: sessionId });
     });
 
-    socket.on(SOCKET_EVENTS.MEETING_STATE, ({ participants, transcripts: existingTranscripts }) => {
-      setTranscripts(existingTranscripts || []);
-    });
-
     // Participant joined -> create peer connection and send offer
     socket.on(SOCKET_EVENTS.MEETING_PARTICIPANT_JOINED, async ({ peerId, user: remoteUser }) => {
       const pc = createPeerConnection(peerId, remoteUser);
@@ -370,17 +369,9 @@ function LiveGDMeetingRoom({ sessionId }: { sessionId: string }) {
       setChats((prev) => [...prev, chat]);
     });
 
-    // Transcript received
-    socket.on(SOCKET_EVENTS.MEETING_TRANSCRIPT, (segment) => {
-      setTranscripts((prev) => [...prev, segment]);
-    });
-
     // AI Moderator Event
-    socket.on(SOCKET_EVENTS.MEETING_MODERATOR_EVENT, ({ message, segment }) => {
+    socket.on(SOCKET_EVENTS.MEETING_MODERATOR_EVENT, ({ message }) => {
       setModeratorNotice(message);
-      if (segment) {
-        setTranscripts((prev) => [...prev, segment]);
-      }
       // Speak AI Moderator intervention aloud so all candidates hear guidance
       speechService.speak('moderator', message);
       setTimeout(() => setModeratorNotice(null), 10000);
@@ -399,8 +390,6 @@ function LiveGDMeetingRoom({ sessionId }: { sessionId: string }) {
       });
     });
 
-    // Start live speech-to-text recognition
-    startLiveSpeechRecognition(socket);
   };
 
   const createPeerConnection = (peerId: string, remoteUser: any) => {
@@ -426,45 +415,6 @@ function LiveGDMeetingRoom({ sessionId }: { sessionId: string }) {
     };
 
     return pc;
-  };
-
-  // Browser Speech-to-Text streaming
-  const startLiveSpeechRecognition = (socket: Socket) => {
-    const SpeechRecognition =
-      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-
-    if (!SpeechRecognition) return;
-
-    const recognition = new SpeechRecognition();
-    recognition.lang = 'en-IN';
-    recognition.continuous = true;
-    recognition.interimResults = true;
-
-    recognition.onresult = (event: any) => {
-      const current = event.resultIndex;
-      const text = event.results[current][0].transcript;
-      const isFinal = event.results[current].isFinal;
-
-      if (isFinal && text.trim().length > 3) {
-        socket.emit(SOCKET_EVENTS.MEETING_TRANSCRIPT, {
-          text: text.trim(),
-          isFinal: true,
-        });
-      }
-    };
-
-    recognition.onerror = () => {};
-    recognition.onend = () => {
-      // Auto restart to maintain live transcription
-      try {
-        recognition.start();
-      } catch {}
-    };
-
-    try {
-      recognition.start();
-      recognitionRef.current = recognition;
-    } catch {}
   };
 
   const handleSendChat = (e: React.FormEvent) => {
@@ -579,7 +529,7 @@ function LiveGDMeetingRoom({ sessionId }: { sessionId: string }) {
           <div>
             <h2 className="text-lg font-bold text-slate-900 dark:text-white">Overall Discussion Score</h2>
             <p className="text-xs text-slate-500 dark:text-slate-400">
-              Generated from real-time speech transcription & candidate participation
+              Generated from the available discussion record
             </p>
           </div>
           <div className="flex items-baseline space-x-1">
@@ -664,7 +614,7 @@ function LiveGDMeetingRoom({ sessionId }: { sessionId: string }) {
         </div>
       )}
 
-      {/* Main Grid: Video Grid (Left) + Chat/Transcript (Right) */}
+      {/* Main Grid: Video Grid (Left) + Meeting Chat (Right) */}
       <div className="grid flex-1 grid-cols-1 gap-4 overflow-hidden lg:grid-cols-12">
         {/* Video Mesh Grid */}
         <div className="flex flex-col justify-between rounded-2xl border border-slate-200 bg-slate-900 p-4 shadow-sm dark:border-slate-800 lg:col-span-8">
@@ -673,9 +623,7 @@ function LiveGDMeetingRoom({ sessionId }: { sessionId: string }) {
             {/* Local Video Tile */}
             <div className="relative aspect-video overflow-hidden rounded-xl bg-slate-800 border border-slate-700">
               <video
-                ref={(el) => {
-                  if (el && localStreamRef.current) el.srcObject = localStreamRef.current;
-                }}
+                ref={localVideoRef}
                 autoPlay
                 playsInline
                 muted
@@ -799,100 +747,45 @@ function LiveGDMeetingRoom({ sessionId }: { sessionId: string }) {
           </div>
         </div>
 
-        {/* Right: Live Transcript & Meeting Chat Tabs */}
+        {/* Right: Meeting Chat */}
         <div className="flex flex-col justify-between overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900 lg:col-span-4">
-          {/* Tabs */}
-          <div className="flex border-b border-slate-100 p-2 text-xs font-semibold dark:border-slate-800">
-            <button
-              onClick={() => setActiveTab('transcript')}
-              className={`flex-1 rounded-lg py-2 transition-colors ${
-                activeTab === 'transcript'
-                  ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300'
-                  : 'text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800'
-              }`}
-            >
-              Live Transcript
-            </button>
-            <button
-              onClick={() => setActiveTab('chat')}
-              className={`flex-1 rounded-lg py-2 transition-colors ${
-                activeTab === 'chat'
-                  ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300'
-                  : 'text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800'
-              }`}
-            >
-              Meeting Chat ({chats.length})
-            </button>
+          <div className="border-b border-slate-100 px-4 py-3 text-xs font-semibold text-slate-700 dark:border-slate-800 dark:text-slate-200">
+            Meeting Chat ({chats.length})
           </div>
-
-          {/* Transcript Feed */}
-          {activeTab === 'transcript' && (
+          <div className="flex flex-1 flex-col justify-between overflow-hidden">
             <div className="flex-1 overflow-y-auto p-4 space-y-3">
-              {transcripts.map((t, idx) => (
-                <div
-                  key={idx}
-                  className={`rounded-xl p-3 text-xs ${
-                    t.isAi
-                      ? 'border border-indigo-100 bg-indigo-50/70 dark:border-indigo-900 dark:bg-indigo-950/40'
-                      : 'border border-slate-100 bg-slate-50 dark:border-slate-800 dark:bg-slate-800/40'
-                  }`}
-                >
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="font-bold text-indigo-600 dark:text-indigo-400">
-                      {t.speakerName}
-                    </span>
+              {chats.map((c, idx) => (
+                <div key={idx} className="rounded-xl bg-slate-50 p-2.5 text-xs dark:bg-slate-800/50">
+                  <div className="flex justify-between font-bold text-slate-700 dark:text-slate-300">
+                    <span>{c.sender}</span>
                     <span className="text-[10px] text-slate-400">
-                      {new Date(t.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      {new Date(c.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </span>
                   </div>
-                  <p className="text-slate-800 dark:text-slate-200">{t.text}</p>
+                  <p className="mt-1 text-slate-800 dark:text-slate-200">{c.text}</p>
                 </div>
               ))}
-              {transcripts.length === 0 && (
-                <p className="py-8 text-center text-xs text-slate-400">
-                  Live speech transcription active. Speak into your microphone to add points.
-                </p>
+              {chats.length === 0 && (
+                <p className="py-8 text-center text-xs text-slate-400">No chat messages yet.</p>
               )}
             </div>
-          )}
 
-          {/* In-Meeting Chat Feed */}
-          {activeTab === 'chat' && (
-            <div className="flex flex-1 flex-col justify-between overflow-hidden">
-              <div className="flex-1 overflow-y-auto p-4 space-y-3">
-                {chats.map((c, idx) => (
-                  <div key={idx} className="rounded-xl bg-slate-50 p-2.5 text-xs dark:bg-slate-800/50">
-                    <div className="flex justify-between font-bold text-slate-700 dark:text-slate-300">
-                      <span>{c.sender}</span>
-                      <span className="text-[10px] text-slate-400">
-                        {new Date(c.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                      </span>
-                    </div>
-                    <p className="mt-1 text-slate-800 dark:text-slate-200">{c.text}</p>
-                  </div>
-                ))}
-                {chats.length === 0 && (
-                  <p className="py-8 text-center text-xs text-slate-400">No chat messages yet.</p>
-                )}
-              </div>
-
-              <form onSubmit={handleSendChat} className="border-t border-slate-100 p-3 dark:border-slate-800 flex gap-2">
-                <input
-                  type="text"
-                  placeholder="Send in-meeting message..."
-                  value={chatInput}
-                  onChange={(e) => setChatInput(e.target.value)}
-                  className="flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs outline-none focus:border-indigo-600 dark:border-slate-800 dark:bg-slate-800 dark:text-white"
-                />
-                <button
-                  type="submit"
-                  className="rounded-xl bg-indigo-600 px-3 py-2 text-white hover:bg-indigo-700"
-                >
-                  <Send size={14} />
-                </button>
-              </form>
-            </div>
-          )}
+            <form onSubmit={handleSendChat} className="flex gap-2 border-t border-slate-100 p-3 dark:border-slate-800">
+              <input
+                type="text"
+                placeholder="Send in-meeting message..."
+                value={chatInput}
+                onChange={(e) => setChatInput(e.target.value)}
+                className="flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs outline-none focus:border-indigo-600 dark:border-slate-800 dark:bg-slate-800 dark:text-white"
+              />
+              <button
+                type="submit"
+                className="rounded-xl bg-indigo-600 px-3 py-2 text-white hover:bg-indigo-700"
+              >
+                <Send size={14} />
+              </button>
+            </form>
+          </div>
         </div>
       </div>
     </div>
@@ -915,4 +808,3 @@ function RubricRow({ label, val }: { label: string; val: number }) {
     </div>
   );
 }
-

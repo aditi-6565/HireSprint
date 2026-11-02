@@ -1,7 +1,6 @@
 import { Server, Socket } from 'socket.io';
 import jwt from 'jsonwebtoken';
-import { GDSession, GDParticipant, TranscriptSegment, ModeratorEvent, AttendanceRecord } from '../models/index.js';
-import { AIService } from '../services/ai/groqService.js';
+import { GDSession, GDParticipant, AttendanceRecord } from '../models/index.js';
 import { SOCKET_EVENTS } from 'hiresprint-shared';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'hiresprint-secure-development-jwt-secret-replace-in-production';
@@ -85,12 +84,9 @@ export function setupSocketServer(io: Server) {
         });
 
         // Send room state and existing participants to the joined user
-        const recentTranscripts = await TranscriptSegment.find({ sessionId: session._id }).sort({ sequence: 1 }).limit(30);
-
         socket.emit(SOCKET_EVENTS.MEETING_STATE, {
           session,
           participants: activeParticipants,
-          transcripts: recentTranscripts,
           peerId: socket.id,
         });
       } catch (err: any) {
@@ -151,70 +147,6 @@ export function setupSocketServer(io: Server) {
         raised,
         userName: currentUser.name,
       });
-    });
-
-    // Real-Time Transcript Stream from Student's Speech-to-Text
-    socket.on(SOCKET_EVENTS.MEETING_TRANSCRIPT, async ({ text, isFinal }) => {
-      if (!currentRoomId || !text || text.trim().length === 0) return;
-
-      try {
-        const last = await TranscriptSegment.findOne({ sessionId: currentRoomId }).sort({ sequence: -1 });
-        const sequence = (last?.sequence || 0) + 1;
-
-        const segment = await TranscriptSegment.create({
-          sessionId: currentRoomId,
-          speakerId: currentUser.id,
-          speakerName: currentUser.name,
-          isAi: false,
-          text: text.trim(),
-          sequence,
-          source: 'live_speech',
-          isFinal: Boolean(isFinal),
-        });
-
-        io.to(`meeting:${currentRoomId}`).emit(SOCKET_EVENTS.MEETING_TRANSCRIPT, segment);
-
-        // AI Moderator periodic trigger check
-        // Every ~5 segments, analyze context and determine if moderator should speak
-        if (sequence % 4 === 0) {
-          const session = await GDSession.findById(currentRoomId);
-          if (session) {
-            const allSegs = await TranscriptSegment.find({ sessionId: currentRoomId }).sort({ sequence: 1 });
-            const recent = allSegs.map(s => ({ speaker: s.speakerName, text: s.text }));
-
-            const modMsg = await AIService.generateModeratorTurn(
-              session.topicTitle,
-              'question',
-              recent
-            );
-
-            const modSegment = await TranscriptSegment.create({
-              sessionId: currentRoomId,
-              speakerId: 'ai-moderator',
-              speakerName: 'AI Moderator',
-              isAi: true,
-              personaId: 'moderator',
-              text: modMsg,
-              sequence: sequence + 1,
-              source: 'ai_generated',
-            });
-
-            await ModeratorEvent.create({
-              sessionId: currentRoomId,
-              eventType: 'prompt',
-              message: modMsg,
-            });
-
-            io.to(`meeting:${currentRoomId}`).emit(SOCKET_EVENTS.MEETING_MODERATOR_EVENT, {
-              message: modMsg,
-              segment: modSegment,
-              eventType: 'prompt',
-            });
-          }
-        }
-      } catch (err) {
-        console.error('[Socket Transcript Error]:', err);
-      }
     });
 
     // Leave Meeting

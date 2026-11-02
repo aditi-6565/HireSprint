@@ -46,7 +46,6 @@ export declare const SOCKET_EVENTS: {
     readonly WEBRTC_ICE_CANDIDATE: "webrtc:ice-candidate";
     readonly MEETING_CHAT: "meeting:chat";
     readonly MEETING_HAND_RAISE: "meeting:hand-raise";
-    readonly MEETING_TRANSCRIPT: "meeting:transcript";
     readonly MEETING_MODERATOR_EVENT: "meeting:moderator-event";
     readonly MEETING_ERROR: "meeting:error";
     readonly NOTIFICATION_RECEIVE: "notification:receive";
